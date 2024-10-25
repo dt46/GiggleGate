@@ -5,215 +5,157 @@ import pyttsx3
 import tkinter as tk
 from tkinter import messagebox
 import speech_recognition as sr
-from pydub import AudioSegment
-from pydub.playback import play
 import pyaudio
 import wave
-import matplotlib.pyplot as plt
+import winsound
+import time
+import pyautogui
+import webbrowser
 
-# Initialize text-to-speech engine
-def speak(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
+# Fungsi TTS (Text-to-Speech) dalam bahasa Indonesia
+def bicara(teks):
+    mesin = pyttsx3.init()
+    mesin.setProperty('rate', 150)
+    mesin.setProperty('volume', 1)
+    suara = mesin.getProperty('voices')
+    mesin.setProperty('voice', suara[0].id)
+    mesin.say(teks)
+    mesin.runAndWait()
 
-# Show welcome message in a Tkinter window
-def show_yuna_ai_message():
+# Fungsi menampilkan pesan dengan Tkinter
+def tampilkan_pesan():
     root = tk.Tk()
     root.title("Yuna AI")
     root.geometry("300x150")
-
-    message = "Selamat datang! Akses diterima."
-    messagebox.showinfo("Yuna AI", message)
-
+    messagebox.showinfo("Yuna AI", "Selamat datang! Akses diterima.")
     root.destroy()
 
-# Listen for voice command
-def listen_for_command():
+# Fungsi untuk mendengarkan perintah suara
+def dengar_perintah():
     recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
+    with sr.Microphone() as sumber:
         print("Silakan bicara...")
-        audio = recognizer.listen(source)
-
+        audio = recognizer.listen(sumber)
     try:
-        command = recognizer.recognize_google(audio, language="id-ID")
-        print(f"Perintah diterima: {command}")
-        return command.lower()
+        perintah = recognizer.recognize_google(audio, language="id-ID")
+        print(f"Perintah: {perintah}")
+        return perintah.lower()
     except sr.UnknownValueError:
-        print("Maaf, tidak dapat memahami audio.")
+        print("Tidak mengerti perintah.")
         return None
     except sr.RequestError:
-        print("Kesalahan dalam menghubungi layanan pengenalan suara.")
+        print("Gagal terhubung ke layanan pengenalan suara.")
         return None
 
-# Record voice to a WAV file
-def record_voice(filename):
-    chunk = 1024  # Sample size
-    sample_format = pyaudio.paInt16  # 16 bits per sample
-    channels = 1  # Single channel for microphone
-    fs = 44100  # Record at 44.1 kHz
-    seconds = 5  # Duration of recording
+# Fungsi merekam suara dan menyimpan sebagai WAV
+def rekam_suara(nama_file):
+    chunk = 1024
+    format_sampel = pyaudio.paInt16
+    saluran = 1
+    frekuensi = 44100
+    detik = 5
 
-    print("Silakan berbicara setelah suara beep...")
-    
+    print("Berbicara setelah bunyi beep...")
+    winsound.Beep(1000, 1000)
+
     p = pyaudio.PyAudio()
-
-    stream = p.open(format=sample_format, channels=channels, rate=fs, output=True, input=True)
-    stream.start_stream()
-
-    # Play a beep sound
-    beep = AudioSegment.sine(frequency=1000, duration=1000)  # 1-second beep
-    play(beep)
-
-    # Start recording
-    frames = []
-    for _ in range(0, int(fs / chunk * seconds)):
-        data = stream.read(chunk)
-        frames.append(data)
+    stream = p.open(format=format_sampel, channels=saluran, rate=frekuensi, input=True)
+    frames = [stream.read(chunk) for _ in range(0, int(frekuensi / chunk * detik))]
 
     stream.stop_stream()
     stream.close()
     p.terminate()
 
-    # Save the recorded data as a WAV file
-    with wave.open(filename, 'wb') as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(p.get_sample_size(sample_format))
-        wf.setframerate(fs)
+    with wave.open(nama_file, 'wb') as wf:
+        wf.setnchannels(saluran)
+        wf.setsampwidth(p.get_sample_size(format_sampel))
+        wf.setframerate(frekuensi)
         wf.writeframes(b''.join(frames))
 
-    print(f"Suara telah direkam dan disimpan di {filename}.")
+    print(f"Suara disimpan di {nama_file}.")
 
-# Create waveform image from audio file
-def create_waveform_image(audio_file, image_file):
-    # Read the audio data
-    wf = wave.open(audio_file, 'rb')
-    sample_rate = wf.getframerate()
-    n_samples = wf.getnframes()
-    t_audio = n_samples / sample_rate  # Total time of audio
-    audio_data = wf.readframes(n_samples)
-    wf.close()
-
-    # Convert audio data to numpy array
-    audio_data = np.frombuffer(audio_data, dtype=np.int16)
-
-    # Create time axis
-    time = np.linspace(0., t_audio, n_samples)
-
-    # Plot the waveform
-    plt.figure(figsize=(12, 4))
-    plt.plot(time, audio_data)
-    plt.title("Waveform")
-    plt.xlabel("Time [s]")
-    plt.ylabel("Amplitude")
-    plt.grid()
-
-    # Save the waveform image
-    plt.savefig(image_file)
-    plt.close()
-
-    print(f"Waveform image telah disimpan di {image_file}.")
-    return image_file
-
-# Register voice
-def register_voice(name):
-    filename = f"{name}_voice.wav"
-    record_voice(filename)
-    # Create waveform image after recording
-    image_file = f"{name}_waveform.png"
-    create_waveform_image(filename, image_file)
-    print(f"Suara {name} telah terdaftar.")
-
-# Register face
-def register_face(name, nim):
+# Fungsi untuk mendaftarkan wajah menggunakan kamera
+def daftar_wajah(nama, nim):
     video_capture = cv2.VideoCapture(0)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-    images = []
-    labels = []
+    wajah_terdaftar = []
+    print("Arahkan wajah Anda ke kamera.")
 
-    while True:
+    while len(wajah_terdaftar) < 30:
         ret, frame = video_capture.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
+        abu_abu = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        wajah = face_cascade.detectMultiScale(abu_abu, 1.1, 5)
 
-        for (x, y, w, h) in faces:
-            face_image = gray[y:y + h, x:x + w]
-            face_image_resized = cv2.resize(face_image, (100, 100))
-            images.append(face_image_resized)
-            labels.append(name + "_" + nim)
+        for (x, y, w, h) in wajah:
+            wajah_terpotong = abu_abu[y:y+h, x:x+w]
+            wajah_terdaftar.append(cv2.resize(wajah_terpotong, (100, 100)))
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-        cv2.imshow("Video", frame)
-
-        if len(images) >= 30:  # Capture 30 images
-            break
+        cv2.imshow("Pendaftaran Wajah", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    if images:
-        images = np.array(images)
-        np.save(f"{name}_{nim}_faces.npy", images)
-        np.save(f"{name}_{nim}_labels.npy", labels)
-        print(f"Wajah {name} dengan NIM {nim} telah terdaftar.")
-        speak(f"Wajah terdaftar untuk {name}")
-
+    np.save(f"{nama}_{nim}_wajah.npy", wajah_terdaftar)
     video_capture.release()
     cv2.destroyAllWindows()
+    bicara("Wajah telah terdaftar.")
 
-# Verify face
-def verify_face(name, nim):
-    encoding_path = f"{name}_{nim}_faces.npy"
-    labels_path = f"{name}_{nim}_labels.npy"
+# Fungsi untuk membuka aplikasi berdasarkan nama perintah
+def buka_aplikasi(nama_aplikasi):
+    aplikasi = {
+        "whatsapp": "C:\\Program Files\\WindowsApps\\5319275A.WhatsAppDesktop_2.2440.9.0_x64__cv1g1gvanyjgm\\WhatsApp.exe",
+        "visual studio code": "C:\\Users\\M. Galuh Gumelar\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+        "chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    }
 
-    if not os.path.exists(encoding_path) or not os.path.exists(labels_path):
-        print("Tidak ada wajah terdaftar sebelumnya. Silakan daftar terlebih dahulu.")
+    if nama_aplikasi in aplikasi:
+        try:
+            os.startfile(aplikasi[nama_aplikasi])
+            print(f"{nama_aplikasi} berhasil dibuka.")
+        except FileNotFoundError:
+            print(f"{nama_aplikasi} tidak ditemukan.")
+    else:
+        print(f"Aplikasi {nama_aplikasi} belum terdaftar.")
+
+# Fungsi verifikasi wajah
+def verifikasi_wajah(nama, nim):
+    file_wajah = f"{nama}_{nim}_wajah.npy"
+    if not os.path.exists(file_wajah):
+        print("Wajah belum terdaftar.")
         return False
 
-    images = np.load(encoding_path, allow_pickle=True)
-    labels = np.load(labels_path, allow_pickle=True)
-
-    try:
-        model = cv2.face.LBPHFaceRecognizer_create()
-    except AttributeError:
-        print("Modul face tidak tersedia. Pastikan Anda telah menginstal opencv-contrib-python.")
-        return False
-
-    model.train(images, np.array(range(len(labels))))
+    wajah_terdaftar = np.load(file_wajah, allow_pickle=True)
+    model = cv2.face.LBPHFaceRecognizer_create()
+    model.train(wajah_terdaftar, np.arange(len(wajah_terdaftar)))
 
     video_capture = cv2.VideoCapture(0)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     while True:
         ret, frame = video_capture.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
+        abu_abu = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        wajah = face_cascade.detectMultiScale(abu_abu, 1.1, 5)
 
-        for (x, y, w, h) in faces:
-            face_image = gray[y:y + h, x:x + w]
-            label, confidence = model.predict(face_image)
+        for (x, y, w, h) in wajah:
+            wajah_terpotong = abu_abu[y:y+h, x:x+w]
+            label, kepercayaan = model.predict(wajah_terpotong)
 
-            if confidence < 100:  # Threshold bisa disesuaikan
-                print("Wajah terverifikasi. Selamat datang!")
-                speak("Wajah terverifikasi. Selamat datang!")
-
-                # Listen for the command to show the Yuna AI message
-                command = listen_for_command()
-                if command == "tampilkan pesan yuna ai":
-                    show_yuna_ai_message()
-
-                video_capture.release()
-                cv2.destroyAllWindows()
+            if kepercayaan < 100:
+                print("Wajah terverifikasi.")
+                bicara("Wajah terverifikasi. Aplikasi apa yang ingin Anda buka?")
+                tampilkan_pesan()
+                
+                # Dengarkan perintah untuk membuka aplikasi
+                perintah = dengar_perintah()
+                if perintah:
+                    buka_aplikasi(perintah)
                 return True
             else:
-                print("Wajah tidak cocok. Akses ditolak.")
-                speak("Wajah tidak cocok. Akses ditolak.")
-                video_capture.release()
-                cv2.destroyAllWindows()
+                print("Wajah tidak dikenali.")
+                bicara("Wajah tidak dikenali.")
                 return False
 
-        cv2.imshow("Verifikasi Wajah", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
@@ -221,32 +163,27 @@ def verify_face(name, nim):
     cv2.destroyAllWindows()
     return False
 
-# Main function to choose registration or login
-def main():
+# Fungsi utama untuk Daftar atau Login
+def utama():
     print("Pilih opsi:")
     print("1. Daftar")
     print("2. Login")
-    choice = input("Masukkan pilihan (1/2): ")
+    pilihan = input("Masukkan pilihan (1/2): ")
 
-    if choice == '1':
-        name = input("Masukkan nama: ")
+    if pilihan == '1':
+        nama = input("Masukkan nama: ")
         nim = input("Masukkan NIM: ")
-        print("Mendaftarkan wajah...")
-        register_face(name, nim)
-
-        print("Sekarang mendengarkan perintah untuk mendaftarkan suara...")
-        while True:
-            command = listen_for_command()
-            if command == "daftar suara":
-                register_voice(name)  # Register voice
-                break  # Exit the loop after registering voice
-    elif choice == '2':
-        name = input("Masukkan nama: ")
+        daftar_wajah(nama, nim)
+        rekam_suara(f"{nama}_suara.wav")
+    elif pilihan == '2':
+        nama = input("Masukkan nama: ")
         nim = input("Masukkan NIM: ")
-        print("Melakukan verifikasi wajah...")
-        verify_face(name, nim)
+        if verifikasi_wajah(nama, nim):
+            print("Akses diterima.")
+        else:
+            print("Akses ditolak.")
     else:
-        print("Pilihan tidak valid. Silakan coba lagi.")
+        print("Pilihan tidak valid.")
 
 if __name__ == "__main__":
-    main()
+    utama()

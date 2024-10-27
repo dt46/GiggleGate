@@ -5,12 +5,9 @@ import pyttsx3
 import tkinter as tk
 from tkinter import messagebox
 import speech_recognition as sr
-import pyaudio
-import wave
-import winsound
+import threading
 import time
-import pyautogui
-import webbrowser
+import psutil  # Module tambahan untuk menutup aplikasi
 
 # Fungsi TTS (Text-to-Speech) dalam bahasa Indonesia
 def bicara(teks):
@@ -47,38 +44,42 @@ def dengar_perintah():
         print("Gagal terhubung ke layanan pengenalan suara.")
         return None
 
-# Fungsi merekam suara dan menyimpan sebagai WAV
-def rekam_suara(nama_file):
-    chunk = 1024
-    format_sampel = pyaudio.paInt16
-    saluran = 1
-    frekuensi = 44100
-    detik = 5
+# Fungsi untuk mencari aplikasi yang terinstal di direktori Program Files
+def cari_aplikasi(nama_aplikasi):
+    program_files = ["C:\\Program Files", "C:\\Program Files (x86)"]
+    for directory in program_files:
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.lower().startswith(nama_aplikasi.lower()) and file.endswith(".exe"):
+                    return os.path.join(root, file)
+    return None
 
-    print("Berbicara setelah bunyi beep...")
-    winsound.Beep(1000, 1000)
+# Fungsi untuk membuka aplikasi
+def buka_aplikasi(nama_aplikasi):
+    path = cari_aplikasi(nama_aplikasi)
+    if path:
+        os.startfile(path)
+        print(f"{nama_aplikasi} berhasil dibuka.")
+        bicara(f"Aplikasi {nama_aplikasi} berhasil dibuka.")
+    else:
+        print(f"{nama_aplikasi} tidak ditemukan.")
+        bicara(f"Aplikasi {nama_aplikasi} tidak ditemukan.")
 
-    p = pyaudio.PyAudio()
-    stream = p.open(format=format_sampel, channels=saluran, rate=frekuensi, input=True)
-    frames = [stream.read(chunk) for _ in range(0, int(frekuensi / chunk * detik))]
-
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-    with wave.open(nama_file, 'wb') as wf:
-        wf.setnchannels(saluran)
-        wf.setsampwidth(p.get_sample_size(format_sampel))
-        wf.setframerate(frekuensi)
-        wf.writeframes(b''.join(frames))
-
-    print(f"Suara disimpan di {nama_file}.")
+# Fungsi untuk menutup aplikasi
+def tutup_aplikasi(nama_aplikasi):
+    for proc in psutil.process_iter():
+        if nama_aplikasi.lower() in proc.name().lower():
+            proc.terminate()
+            print(f"{nama_aplikasi} berhasil ditutup.")
+            bicara(f"Aplikasi {nama_aplikasi} berhasil ditutup.")
+            return
+    print(f"{nama_aplikasi} tidak ditemukan.")
+    bicara(f"Aplikasi {nama_aplikasi} tidak ditemukan.")
 
 # Fungsi untuk mendaftarkan wajah menggunakan kamera
 def daftar_wajah(nama, nim):
     video_capture = cv2.VideoCapture(0)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
     wajah_terdaftar = []
     print("Arahkan wajah Anda ke kamera.")
 
@@ -101,22 +102,37 @@ def daftar_wajah(nama, nim):
     cv2.destroyAllWindows()
     bicara("Wajah telah terdaftar.")
 
-# Fungsi untuk membuka aplikasi berdasarkan nama perintah
-def buka_aplikasi(nama_aplikasi):
-    aplikasi = {
-        "whatsapp": "C:\\Program Files\\WindowsApps\\5319275A.WhatsAppDesktop_2.2440.9.0_x64__cv1g1gvanyjgm\\WhatsApp.exe",
-        "visual studio code": "C:\\Users\\M. Galuh Gumelar\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
-        "chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-    }
-
-    if nama_aplikasi in aplikasi:
-        try:
-            os.startfile(aplikasi[nama_aplikasi])
-            print(f"{nama_aplikasi} berhasil dibuka.")
-        except FileNotFoundError:
-            print(f"{nama_aplikasi} tidak ditemukan.")
+    # Simpan contoh suara untuk verifikasi suara
+    bicara("Silakan sebutkan kata sandi suara untuk verifikasi.")
+    suara_kata_sandi = dengar_perintah()
+    if suara_kata_sandi:
+        with open(f"{nama}_{nim}_suara.txt", "w") as file:
+            file.write(suara_kata_sandi)
+        print("Kata sandi suara telah disimpan.")
+        bicara("Kata sandi suara telah disimpan.")
     else:
-        print(f"Aplikasi {nama_aplikasi} belum terdaftar.")
+        print("Gagal merekam kata sandi suara.")
+
+# Fungsi verifikasi suara
+def verifikasi_suara(nama, nim):
+    file_suara = f"{nama}_{nim}_suara.txt"
+    if not os.path.exists(file_suara):
+        print("Kata sandi suara tidak ditemukan.")
+        return False
+
+    with open(file_suara, "r") as file:
+        kata_sandi_terdaftar = file.read().strip()
+
+    print("Silakan sebutkan kata sandi suara.")
+    bicara("Silakan sebutkan kata sandi suara.")
+    suara = dengar_perintah()
+    if suara == kata_sandi_terdaftar:
+        print("Verifikasi suara berhasil.")
+        return True
+    else:
+        print("Verifikasi suara gagal.")
+        bicara("Verifikasi suara gagal.")
+        return False
 
 # Fungsi verifikasi wajah
 def verifikasi_wajah(nama, nim):
@@ -143,13 +159,6 @@ def verifikasi_wajah(nama, nim):
 
             if kepercayaan < 100:
                 print("Wajah terverifikasi.")
-                bicara("Wajah terverifikasi. Aplikasi apa yang ingin Anda buka?")
-                tampilkan_pesan()
-                
-                # Dengarkan perintah untuk membuka aplikasi
-                perintah = dengar_perintah()
-                if perintah:
-                    buka_aplikasi(perintah)
                 return True
             else:
                 print("Wajah tidak dikenali.")
@@ -174,12 +183,22 @@ def utama():
         nama = input("Masukkan nama: ")
         nim = input("Masukkan NIM: ")
         daftar_wajah(nama, nim)
-        rekam_suara(f"{nama}_suara.wav")
     elif pilihan == '2':
         nama = input("Masukkan nama: ")
         nim = input("Masukkan NIM: ")
-        if verifikasi_wajah(nama, nim):
+        if verifikasi_wajah(nama, nim) and verifikasi_suara(nama, nim):
             print("Akses diterima.")
+            tampilkan_pesan()
+            while True:
+                bicara("Apa perintah anda?")
+                perintah = dengar_perintah()
+                if perintah:
+                    if perintah.startswith("buka"):
+                        nama_aplikasi = perintah.replace("buka ", "")
+                        buka_aplikasi(nama_aplikasi)
+                    elif perintah.startswith("tutup"):
+                        nama_aplikasi = perintah.replace("tutup ", "")
+                        tutup_aplikasi(nama_aplikasi)
         else:
             print("Akses ditolak.")
     else:

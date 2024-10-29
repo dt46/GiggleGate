@@ -22,9 +22,9 @@ def bicara(teks):
 # Fungsi menampilkan pesan dengan Tkinter
 def tampilkan_pesan():
     root = tk.Tk()
-    root.title("Yuna AI")
+    root.title("GiggleGate")
     root.geometry("300x150")
-    messagebox.showinfo("Yuna AI", "Selamat datang! Akses diterima.")
+    messagebox.showinfo("GiggleGate", "Selamat datang! Akses diterima.")
     root.destroy()
 
 # Fungsi untuk mendengarkan perintah suara
@@ -46,13 +46,14 @@ def dengar_perintah():
 
 # Fungsi untuk mencari aplikasi yang terinstal di direktori Program Files
 def cari_aplikasi(nama_aplikasi):
-    program_files = ["C:\\Program Files", "C:\\Program Files (x86)"]
+    program_files = ["C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs"]
     for directory in program_files:
         for root, dirs, files in os.walk(directory):
             for file in files:
                 if file.lower().startswith(nama_aplikasi.lower()) and file.endswith(".exe"):
                     return os.path.join(root, file)
     return None
+
 
 # Fungsi untuk membuka aplikasi
 def buka_aplikasi(nama_aplikasi):
@@ -196,9 +197,16 @@ def utama():
                     if perintah.startswith("buka"):
                         nama_aplikasi = perintah.replace("buka ", "")
                         buka_aplikasi(nama_aplikasi)
+                    elif perintah.startswith("tutup program"):
+                        print("Menutup program utama.")
+                        bicara("Menutup program utama.")
+                        break  # Mengakhiri loop utama dan menutup program
                     elif perintah.startswith("tutup"):
                         nama_aplikasi = perintah.replace("tutup ", "")
                         tutup_aplikasi(nama_aplikasi)
+                    else:
+                        print("Perintah tidak dikenali.")
+                        bicara("Perintah tidak dikenali.")
         else:
             print("Akses ditolak.")
     else:

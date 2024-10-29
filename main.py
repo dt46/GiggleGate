@@ -3,11 +3,9 @@ import os
 import numpy as np
 import pyttsx3
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 import speech_recognition as sr
-import threading
-import time
-import psutil  # Module tambahan untuk menutup aplikasi
+import psutil
 
 # Fungsi TTS (Text-to-Speech) dalam bahasa Indonesia
 def bicara(teks):
@@ -22,12 +20,17 @@ def bicara(teks):
 # Fungsi menampilkan pesan dengan Tkinter
 def tampilkan_pesan():
     root = tk.Tk()
-    root.title("Yuna AI")
-    root.geometry("300x150")
-    messagebox.showinfo("Yuna AI", "Selamat datang! Akses diterima.")
+    root.withdraw()
+    messagebox.showinfo("GiggleGate", "Selamat datang! Akses diterima.")
     root.destroy()
 
-# Fungsi untuk mendengarkan perintah suara
+# Fungsi meminta input menggunakan Tkinter
+def input_gui(prompt):
+    root = tk.Tk()
+    root.withdraw()  # Menyembunyikan jendela utama
+    return simpledialog.askstring("Input", prompt, parent=root)
+
+# Fungsi mendengarkan perintah suara
 def dengar_perintah():
     recognizer = sr.Recognizer()
     with sr.Microphone() as sumber:
@@ -44,7 +47,7 @@ def dengar_perintah():
         print("Gagal terhubung ke layanan pengenalan suara.")
         return None
 
-# Fungsi untuk mencari aplikasi yang terinstal di direktori Program Files
+# Fungsi mencari aplikasi
 def cari_aplikasi(nama_aplikasi):
     program_files = ["C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs"]
     for directory in program_files:
@@ -54,34 +57,29 @@ def cari_aplikasi(nama_aplikasi):
                     return os.path.join(root, file)
     return None
 
-# Fungsi untuk membuka aplikasi
+# Fungsi membuka aplikasi
 def buka_aplikasi(nama_aplikasi):
     path = cari_aplikasi(nama_aplikasi)
     if path:
         os.startfile(path)
-        print(f"{nama_aplikasi} berhasil dibuka.")
         bicara(f"Aplikasi {nama_aplikasi} berhasil dibuka.")
     else:
-        print(f"{nama_aplikasi} tidak ditemukan.")
         bicara(f"Aplikasi {nama_aplikasi} tidak ditemukan.")
 
-# Fungsi untuk menutup aplikasi
+# Fungsi menutup aplikasi
 def tutup_aplikasi(nama_aplikasi):
     for proc in psutil.process_iter():
         if nama_aplikasi.lower() in proc.name().lower():
             proc.terminate()
-            print(f"{nama_aplikasi} berhasil ditutup.")
             bicara(f"Aplikasi {nama_aplikasi} berhasil ditutup.")
             return
-    print(f"{nama_aplikasi} tidak ditemukan.")
     bicara(f"Aplikasi {nama_aplikasi} tidak ditemukan.")
 
-# Fungsi untuk mendaftarkan wajah menggunakan kamera
+# Fungsi pendaftaran wajah
 def daftar_wajah(nama, nim):
     video_capture = cv2.VideoCapture(0)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     wajah_terdaftar = []
-    print("Arahkan wajah Anda ke kamera.")
 
     while len(wajah_terdaftar) < 30:
         ret, frame = video_capture.read()
@@ -102,43 +100,34 @@ def daftar_wajah(nama, nim):
     cv2.destroyAllWindows()
     bicara("Wajah telah terdaftar.")
 
-    # Simpan contoh suara untuk verifikasi suara
     bicara("Silakan sebutkan kata sandi suara untuk verifikasi.")
     suara_kata_sandi = dengar_perintah()
     if suara_kata_sandi:
         with open(f"{nama}_{nim}_suara.txt", "w") as file:
             file.write(suara_kata_sandi)
-        print("Kata sandi suara telah disimpan.")
         bicara("Kata sandi suara telah disimpan.")
     else:
-        print("Gagal merekam kata sandi suara.")
+        bicara("Gagal merekam kata sandi suara.")
 
 # Fungsi verifikasi suara
 def verifikasi_suara(nama, nim):
     file_suara = f"{nama}_{nim}_suara.txt"
     if not os.path.exists(file_suara):
-        print("Kata sandi suara tidak ditemukan.")
+        bicara("Kata sandi suara tidak ditemukan.")
         return False
 
     with open(file_suara, "r") as file:
         kata_sandi_terdaftar = file.read().strip()
 
-    print("Silakan sebutkan kata sandi suara.")
     bicara("Silakan sebutkan kata sandi suara.")
     suara = dengar_perintah()
-    if suara == kata_sandi_terdaftar:
-        print("Verifikasi suara berhasil.")
-        return True
-    else:
-        print("Verifikasi suara gagal.")
-        bicara("Verifikasi suara gagal.")
-        return False
+    return suara == kata_sandi_terdaftar
 
 # Fungsi verifikasi wajah
 def verifikasi_wajah(nama, nim):
     file_wajah = f"{nama}_{nim}_wajah.npy"
     if not os.path.exists(file_wajah):
-        print("Wajah belum terdaftar.")
+        bicara("Wajah belum terdaftar.")
         return False
 
     wajah_terdaftar = np.load(file_wajah, allow_pickle=True)
@@ -158,12 +147,9 @@ def verifikasi_wajah(nama, nim):
             label, kepercayaan = model.predict(wajah_terpotong)
 
             if kepercayaan < 100:
-                print("Wajah terverifikasi.")
+                video_capture.release()
+                cv2.destroyAllWindows()
                 return True
-            else:
-                print("Wajah tidak dikenali.")
-                bicara("Wajah tidak dikenali.")
-                return False
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -172,44 +158,43 @@ def verifikasi_wajah(nama, nim):
     cv2.destroyAllWindows()
     return False
 
-# Fungsi utama untuk Daftar atau Login
+# Fungsi utama untuk daftar atau login
 def utama():
-    print("Pilih opsi:")
-    print("1. Daftar")
-    print("2. Login")
-    pilihan = input("Masukkan pilihan (1/2): ")
-
+    pilihan = input_gui("Pilih opsi: 1. Daftar, 2. Login")
     if pilihan == '1':
-        nama = input("Masukkan nama: ")
-        nim = input("Masukkan NIM: ")
+        nama = input_gui("Masukkan nama:")
+        nim = input_gui("Masukkan NIM:")
         daftar_wajah(nama, nim)
     elif pilihan == '2':
-        nama = input("Masukkan nama: ")
-        nim = input("Masukkan NIM: ")
+        nama = input_gui("Masukkan nama:")
+        nim = input_gui("Masukkan NIM:")
         if verifikasi_wajah(nama, nim) and verifikasi_suara(nama, nim):
-            print("Akses diterima.")
             tampilkan_pesan()
+            
+            # Tambahkan logika untuk membuka dan menutup aplikasi dengan suara
             while True:
-                bicara("Apa perintah anda?")
+                bicara("Silakan sebutkan perintah:")
                 perintah = dengar_perintah()
-                if perintah:
-                    if perintah.startswith("buka"):
-                        nama_aplikasi = perintah.replace("buka ", "")
-                        buka_aplikasi(nama_aplikasi)
-                    elif perintah.startswith("tutup program"):
-                        print("Menutup program utama.")
-                        bicara("Menutup program utama.")
-                        break  # Mengakhiri loop utama dan menutup program
-                    elif perintah.startswith("tutup"):
-                        nama_aplikasi = perintah.replace("tutup ", "")
-                        tutup_aplikasi(nama_aplikasi)
-                    else:
-                        print("Perintah tidak dikenali.")
-                        bicara("Perintah tidak dikenali.")
+                if perintah is None:
+                    bicara("Saya tidak mengerti. Silakan coba lagi.")
+                    continue
+
+                if 'exit' in perintah:
+                    bicara("Keluar dari program.")
+                    break
+                
+                if 'buka' in perintah:
+                    nama_aplikasi = perintah.replace('buka', '').strip()
+                    buka_aplikasi(nama_aplikasi)
+                elif 'tutup' in perintah:
+                    nama_aplikasi = perintah.replace('tutup', '').strip()
+                    tutup_aplikasi(nama_aplikasi)
+                else:
+                    bicara("Perintah tidak valid. Silakan coba lagi.")
         else:
-            print("Akses ditolak.")
+            bicara("Akses ditolak.")
     else:
-        print("Pilihan tidak valid.")
+        bicara("Pilihan tidak valid.")
 
 if __name__ == "__main__":
     utama()
